@@ -19,6 +19,11 @@ find_package(libgit2 CONFIG REQUIRED)
 
 
 # Create executable
-add_executable(apr)
-target_sources(apr PRIVATE src/main.cpp)
+add_executable(apr src/main.cpp)
+target_sources(apr
+  PRIVATE FILE_SET HEADERS
+  BASE_DIRS src
+  FILES
+    src/git2_lib.hpp
+)
 target_link_libraries(apr PRIVATE libgit2::libgit2package)
