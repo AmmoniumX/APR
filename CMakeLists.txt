@@ -16,7 +16,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 # Add packages with vcpkg
 find_package(libgit2 CONFIG REQUIRED)
-
+find_package(glaze CONFIG REQUIRED)
 
 # Create executable
 add_executable(apr src/main.cpp)
@@ -26,4 +26,4 @@ target_sources(apr
   FILES
     src/git2_lib.hpp
 )
-target_link_libraries(apr PRIVATE libgit2::libgit2package)
+target_link_libraries(apr PRIVATE libgit2::libgit2package glaze::glaze)

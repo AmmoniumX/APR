@@ -1,5 +1,6 @@
 {
   "dependencies": [
-    "libgit2"
+    "libgit2",
+    "glaze"
   ]
 }
