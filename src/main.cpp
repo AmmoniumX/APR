@@ -18,6 +18,13 @@ int main(int argc, char **argv) {
   std::print("Loaded config with {} remotes and {} ignored packages\n",
              config.remotes.size(), config.ignored_packages.size());
 
+  auto &sync = args.command;
+  std::println("sync: refresh={} upgrade={} packages={}", sync.refresh,
+               sync.upgrade, sync.packages.size());
+  for (auto &p : sync.packages) {
+    std::println("  pkg: {}", p.unified());
+  }
+
   git_libgit2_shutdown();
   return 0;
 }

@@ -7,7 +7,7 @@ if(DEFINED ENV{VCPKG_ROOT} AND NOT DEFINED CMAKE_TOOLCHAIN_FILE)
         CACHE STRING "vcpkg toolchain file")
 endif()
 
-project(APR)
+project(APRA)
 
 # Set the required C++ standard
 set(CMAKE_CXX_STANDARD 23)
@@ -21,8 +21,8 @@ find_package(CLI11 CONFIG REQUIRED)
 find_package(Boost REQUIRED COMPONENTS process)
 
 # Create executable
-add_executable(apr src/main.cpp src/git2_lib.cpp)
-target_sources(apr
+add_executable(apra src/main.cpp src/git2_lib.cpp)
+target_sources(apra
   PRIVATE FILE_SET HEADERS
   BASE_DIRS src include
   FILES
@@ -31,7 +31,7 @@ target_sources(apr
     src/Core.hpp
     src/git2_lib.hpp
 )
-target_link_libraries(apr PRIVATE 
+target_link_libraries(apra PRIVATE 
   libgit2::libgit2package 
   yaml-cpp::yaml-cpp 
   CLI11::CLI11 

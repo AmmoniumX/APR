@@ -1,14 +1,12 @@
 #pragma once
 
 #include <CLI/CLI.hpp>
-#include <cstdlib>
+#include <algorithm>
 #include <expected>
 #include <filesystem>
 #include <print>
 #include <span>
-#include <stdexcept>
 #include <string>
-#include <variant>
 #include <vector>
 
 #include <Config.hpp>
@@ -17,48 +15,37 @@
 namespace App {
 namespace fs = std::filesystem;
 
-namespace Commands {
-struct FetchRemotes {
-  std::vector<std::string> remotes; // Or All
+struct SyncCommand {
+  std::vector<Package> packages{}; // packages to install, e.g. `-S foo bar`
+  bool refresh = false; // -y: fetch remotes before searching for packages
+  bool upgrade = false; // -u: upgrade all installed packages
 };
-struct InstallPackages {
-  std::vector<Package> packages{}; // list of packages to install
-  bool fetch = true;   // if true, fetch remotes before searching for packages
-  bool upgrade = true; // if true, also update all packages with updates
-};
-} // namespace Commands
-
-using Command = std::variant<Commands::FetchRemotes, Commands::InstallPackages>;
 
 struct Args {
   fs::path config_path = get_default_config_path();
-  Command command;
+  SyncCommand command;
 };
 
 inline std::expected<Args, int> parse_args(std::span<char *> args) {
   Args parsed_args;
-  CLI::App app{"APR - Arch Personal Repository"};
+  CLI::App app{"APRA - Arch Personal Repository Archive"};
 
   app.add_option("-c,--config", parsed_args.config_path,
                  "Path to the configuration file");
 
-  Commands::FetchRemotes fetch;
-  auto fetch_cmd =
-      app.add_subcommand("fetch", "Fetch all remotes or specific ones");
-  fetch_cmd->add_option("remotes", fetch.remotes,
-                        "List of remotes to fetch (optional)");
-
-  Commands::InstallPackages install;
-  auto install_cmd =
-      app.add_subcommand("install", "Install or upgrade a specific package");
-
-  install_cmd->add_flag(
-      "--fetch,!--no-fetch", install.fetch,
-      "Fetch remotes before searching for packages to install");
-  install_cmd->add_flag("--upgrade,!--no-upgrade", install.upgrade,
-                        "Upgrade all existing packages");
-  install_cmd->add_option("packages", install.packages,
-                          "List of packages to install");
+  SyncCommand sync;
+  bool do_sync = false;
+  std::vector<std::string> package_args;
+  auto *sync_opt = app.add_flag("-S,--sync", do_sync, "Synchronize packages");
+  app.add_flag("-y,--refresh", sync.refresh,
+               "Fetch remotes before searching for packages")
+      ->needs(sync_opt);
+  app.add_flag("-u,--sysupgrade", sync.upgrade,
+               "Upgrade all installed packages")
+      ->needs(sync_opt);
+  app.add_option("packages", package_args,
+                 "Packages to install, e.g. `-S foo bar`")
+      ->needs(sync_opt);
 
   try {
     app.parse(static_cast<int>(args.size()), args.data());
@@ -66,12 +53,12 @@ inline std::expected<Args, int> parse_args(std::span<char *> args) {
     return std::unexpected(app.exit(e));
   }
 
-  if (*fetch_cmd) {
-    parsed_args.command = fetch;
-  } else if (*install_cmd) {
-    parsed_args.command = install;
+  if (do_sync) {
+    sync.packages.resize(package_args.size());
+    std::ranges::transform(package_args, sync.packages.begin(), Package::parse);
+    parsed_args.command = sync;
   } else {
-    std::println("No command provided. Use --help for usage information.");
+    std::println("No operation specified. Use --help for usage information.");
     return std::unexpected(1);
   }
 

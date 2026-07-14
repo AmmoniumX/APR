@@ -1,4 +1,4 @@
-# APR - Arch Personal Repository
+# APRA - Arch Personal Repository Archive
 
 ## WIP
 
