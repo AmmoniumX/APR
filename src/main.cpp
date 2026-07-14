@@ -1,3 +1,6 @@
+#include <Args.hpp>
+#include <Config.hpp>
+#include <Core.hpp>
 #include <git2_lib.hpp>
 #include <print>
 #include <span>
@@ -5,16 +8,16 @@
 int main(int arc, char **argv) {
   auto args = std::span(argv, arc);
 
-  git_libgit2_init();
-  std::println("Hello, World!");
+  auto parsed_args = App::parse_args(args);
+  if (!parsed_args) {
+    return parsed_args.error();
+  }
 
-  // Example repo usage
-  git2::Repository repo(".");
-  repo.pull();
-  auto commit = repo.head();
-  std::println("HEAD commit ID: {}",
-                git_oid_tostr_s(git_commit_id(commit.get())));
-  std::print("Commit message: {}\n", git_commit_message(commit.get()));
+  git_libgit2_init();
+
+  auto config = App::load_config(parsed_args->config_path);
+  std::println("Loaded {} remote(s) from {}", config.remotes.size(),
+               parsed_args->config_path.string());
 
   git_libgit2_shutdown();
   return 0;
