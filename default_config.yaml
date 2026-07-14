@@ -1,0 +1,5 @@
+remotes:
+  - name: example
+    url: https://example.com/apr-repo.git
+
+ignored_packages: [foo, bar, baz]

@@ -29,33 +29,38 @@ struct Config {
 inline Config
 load_config(const fs::path &config_path = get_default_config_path()) {
   Config config;
+  if (!fs::exists(config_path) || !fs::is_regular_file(config_path)) {
+    return config;
+  }
+
   YAML::Node config_yaml = YAML::LoadFile(config_path.string());
   for (const auto &remote : config_yaml["remotes"]) {
+    Remote r{.name = remote["name"].as<std::string>(),
+             .url = remote["url"].as<std::string>()};
+    if (remote["priority"]) {
+      r.priority = remote["priority"].as<int>();
+    }
+
     // Check if the remote has a whitelist or blacklist
     if (remote["whitelist"]) {
       std::vector<std::string> whitelist;
       for (const auto &pkg : remote["whitelist"]) {
         whitelist.emplace_back(pkg.as<std::string>());
       }
-      config.remotes.emplace_back(remote["name"].as<std::string>(),
-                                  remote["url"].as<std::string>(),
-                                  Remote::Whitelist{std::move(whitelist)});
+      r.packages = Remote::Whitelist{std::move(whitelist)};
     } else if (remote["blacklist"]) {
       std::vector<std::string> blacklist;
       for (const auto &pkg : remote["blacklist"]) {
         blacklist.emplace_back(pkg.as<std::string>());
       }
-      config.remotes.emplace_back(remote["name"].as<std::string>(),
-                                  remote["url"].as<std::string>(),
-                                  Remote::Blacklist{std::move(blacklist)});
-    } else {
-      config.remotes.emplace_back(remote["name"].as<std::string>(),
-                                  remote["url"].as<std::string>());
+      r.packages = Remote::Blacklist{std::move(blacklist)};
     }
+    config.remotes.emplace_back(std::move(r));
   }
 
   for (const auto &ignored_package : config_yaml["ignored_packages"]) {
-    config.ignored_packages.emplace_back(ignored_package.as<std::string>());
+    config.ignored_packages.emplace_back(
+        Package::parse(ignored_package.as<std::string>()));
   }
 
   return config;

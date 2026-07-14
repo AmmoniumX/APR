@@ -10,6 +10,8 @@ namespace App {
 struct Remote {
   std::string name;
   std::string url;
+  int priority = 1; // higher number means higher priority. Default is 1, 0 is
+                    // the level for pacman.conf repositories.
 
   struct Whitelist {
     std::vector<std::string> packages;
@@ -21,27 +23,14 @@ struct Remote {
 
   std::variant<Whitelist, Blacklist> packages =
       Blacklist{}; // Defaults to allow-all
-
-  explicit Remote(const std::string &name, const std::string &url)
-      : name(name), url(url) {}
-
-  explicit Remote(const std::string &name, const std::string &url,
-                  Whitelist &&whitelist)
-      : name(name), url(url), packages(std::move(whitelist)) {}
-
-  explicit Remote(const std::string &name, const std::string &url,
-                  Blacklist &&blacklist)
-      : name(name), url(url), packages(std::move(blacklist)) {}
 };
 
 struct Package {
   std::string remote;
   std::string name;
 
-  explicit Package(const std::string &remote, const std::string &name)
-      : remote(remote), name(name) {}
-
-  explicit Package(std::string_view unified) {
+  static Package parse(std::string_view unified) {
+    std::string remote{}, name{};
     auto pos = unified.find('/');
     if (pos == std::string_view::npos) {
       remote = "";
@@ -49,6 +38,15 @@ struct Package {
     } else {
       remote = std::string(unified.substr(0, pos));
       name = std::string(unified.substr(pos + 1));
+    }
+    return Package{.remote = std::move(remote), .name = std::move(name)};
+  }
+
+  std::string unified() const {
+    if (remote.empty()) {
+      return name;
+    } else {
+      return remote + "/" + name;
     }
   }
 };
