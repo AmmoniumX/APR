@@ -4,6 +4,7 @@
 #include <cstdlib>
 #include <expected>
 #include <filesystem>
+#include <print>
 #include <span>
 #include <stdexcept>
 #include <string>
@@ -87,7 +88,8 @@ inline std::expected<Args, int> parse_args(std::span<char *> args) {
   } else if (*add_package_cmd) {
     parsed_args.command = Commands::AddPackage{package_name, remote};
   } else {
-    throw std::runtime_error("No command specified");
+    std::println("No command provided. Use --help for usage information.");
+    return std::unexpected(1);
   }
 
   return parsed_args;
