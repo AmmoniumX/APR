@@ -1,6 +1,8 @@
 {
   "dependencies": [
+    "boost-process",
     "libgit2",
-    "yaml-cpp"
+    "yaml-cpp",
+    "cli11"
   ]
 }

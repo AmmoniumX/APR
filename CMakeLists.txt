@@ -17,6 +17,8 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # Add packages with vcpkg
 find_package(libgit2 CONFIG REQUIRED)
 find_package(yaml-cpp CONFIG REQUIRED)
+find_package(CLI11 CONFIG REQUIRED)
+find_package(Boost REQUIRED COMPONENTS process)
 
 # Create executable
 add_executable(apr src/main.cpp src/git2_lib.cpp)
@@ -28,6 +30,10 @@ target_sources(apr
     src/Config.hpp
     src/Core.hpp
     src/git2_lib.hpp
-    include/CLI11.hpp
 )
-target_link_libraries(apr PRIVATE libgit2::libgit2package yaml-cpp::yaml-cpp)
+target_link_libraries(apr PRIVATE 
+  libgit2::libgit2package 
+  yaml-cpp::yaml-cpp 
+  CLI11::CLI11 
+  Boost::process
+)

@@ -3,6 +3,7 @@
 #include "Core.hpp"
 
 #include <filesystem>
+#include <stdexcept>
 #include <string>
 #include <vector>
 #include <yaml-cpp/yaml.h>
@@ -10,12 +11,23 @@
 namespace App {
 namespace fs = std::filesystem;
 
+inline fs::path get_default_config_path() {
+  if (const char *xdg_config_home = std::getenv("XDG_CONFIG_HOME");
+      xdg_config_home) {
+    return fs::path(xdg_config_home) / "apr" / "config.yaml";
+  } else if (const char *home = std::getenv("HOME")) {
+    return fs::path(home) / ".config" / "apr" / "config.yaml";
+  }
+  throw std::runtime_error("Could not determine default config path");
+}
+
 struct Config {
   std::vector<Remote> remotes;
   std::vector<Package> ignored_packages;
 };
 
-inline Config load_config(const fs::path &config_path) {
+inline Config
+load_config(const fs::path &config_path = get_default_config_path()) {
   Config config;
   YAML::Node config_yaml = YAML::LoadFile(config_path.string());
   for (const auto &remote : config_yaml["remotes"]) {
