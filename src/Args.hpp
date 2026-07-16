@@ -22,7 +22,7 @@ struct SyncCommand {
 };
 
 struct Args {
-  fs::path config_path = get_default_config_path();
+  fs::path config_path = get_default_config();
   SyncCommand command;
 };
 

@@ -4,6 +4,7 @@
 #include <git2.h>
 #include <memory>
 #include <optional>
+#include <string>
 #include <vector>
 
 namespace git2 {
@@ -40,6 +41,11 @@ public:
   using GitHandle::GitHandle;
 };
 
+struct RemoteBranch {
+  std::string name;
+  std::string commit_hash;
+};
+
 class Repository : public GitHandle<git_repository, git_repository_free> {
   std::filesystem::path path_;
 
@@ -59,10 +65,11 @@ public:
   Remote remote(const char *remote_name = "origin") const;
   std::vector<Reference> branches() const;
 
-  static Repository clone(const std::string &url,
-                           const std::filesystem::path &path);
-  static std::optional<Repository>
-  try_open(const std::filesystem::path &path);
+  static Repository clone(const char *url, const std::filesystem::path &path);
+  static std::optional<Repository> try_open(const char *url,
+                                            const std::filesystem::path &path,
+                                            const char *remote_name = "origin");
+  static std::vector<RemoteBranch> ls_remote_branches(const char *url);
 
 private:
   static git_repository *open(const std::filesystem::path &path);

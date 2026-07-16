@@ -2,6 +2,7 @@
 
 #include "Core.hpp"
 
+#include <cstdlib>
 #include <filesystem>
 #include <stdexcept>
 #include <string>
@@ -9,16 +10,44 @@
 #include <yaml-cpp/yaml.h>
 
 namespace App {
+constexpr inline const char *APPNAME = "apra";
+
 namespace fs = std::filesystem;
 
-inline fs::path get_default_config_path() {
-  if (const char *xdg_config_home = std::getenv("XDG_CONFIG_HOME");
-      xdg_config_home) {
-    return fs::path(xdg_config_home) / "apr" / "config.yaml";
-  } else if (const char *home = std::getenv("HOME")) {
-    return fs::path(home) / ".config" / "apr" / "config.yaml";
+inline fs::path get_default_config() {
+  auto user_config_dir = []() -> fs::path {
+    if (const char *xdg_config_home = std::getenv("XDG_CONFIG_HOME");
+        xdg_config_home) {
+      return fs::path(xdg_config_home);
+    } else if (const char *home = std::getenv("HOME"); home) {
+      return fs::path(home) / ".config";
+    } else {
+      throw std::runtime_error("Could not determine default config path");
+    }
+  }();
+
+  return user_config_dir / APPNAME / "config.yaml";
+}
+
+inline fs::path get_cache_dir() {
+  auto user_cache_dir = []() -> fs::path {
+    if (const char *xdg_cache_home = std::getenv("XDG_CACHE_HOME");
+        xdg_cache_home) {
+      return fs::path(xdg_cache_home);
+    } else if (const char *home = std::getenv("HOME"); home) {
+      return fs::path(home) / ".cache";
+    } else {
+      throw std::runtime_error("Could not determine default config path");
+    }
+  }();
+
+  auto cache_dir = user_cache_dir / APPNAME;
+
+  if (!fs::exists(cache_dir)) {
+    fs::create_directory(cache_dir);
   }
-  throw std::runtime_error("Could not determine default config path");
+
+  return cache_dir;
 }
 
 struct Config {
@@ -26,8 +55,7 @@ struct Config {
   std::vector<Package> ignored_packages;
 };
 
-inline Config
-load_config(const fs::path &config_path = get_default_config_path()) {
+inline Config load_config(const fs::path &config_path = get_default_config()) {
   Config config;
   if (!fs::exists(config_path) || !fs::is_regular_file(config_path)) {
     return config;

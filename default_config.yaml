@@ -1,5 +1,5 @@
 remotes:
-  - name: example
-    url: https://example.com/apr-repo.git
+  - name: ammoniumx-apra
+    url: https://github.com/AmmoniumX/APRA-Repo.git
 
 ignored_packages: [foo, bar, baz]

@@ -2,6 +2,7 @@
 #include <git2/errors.h>
 #include <git2_lib.hpp>
 #include <stdexcept>
+#include <string_view>
 
 namespace git2 {
 
@@ -28,8 +29,7 @@ Repository::Repository(git_repository *repo, std::filesystem::path path)
 bool Repository::fetch(const char *remote_name) {
   git_remote *remote_raw = nullptr;
   if (git_remote_lookup(&remote_raw, get(), remote_name) != 0) {
-    throw make_error(
-        std::format("Failed to lookup remote '{}'", remote_name));
+    throw make_error(std::format("Failed to lookup remote '{}'", remote_name));
   }
   GitHandle<git_remote, git_remote_free> remote(remote_raw);
 
@@ -145,8 +145,7 @@ Commit Repository::head() const {
 Remote Repository::remote(const char *remote_name) const {
   git_remote *remote = nullptr;
   if (git_remote_lookup(&remote, get(), remote_name) != 0) {
-    throw make_error(
-        std::format("Failed to lookup remote '{}'", remote_name));
+    throw make_error(std::format("Failed to lookup remote '{}'", remote_name));
   }
   return Remote(remote);
 }
@@ -168,17 +167,18 @@ std::vector<Reference> Repository::branches() const {
   return branches;
 }
 
-Repository Repository::clone(const std::string &url,
-                              const std::filesystem::path &path) {
+Repository Repository::clone(const char *url,
+                             const std::filesystem::path &path) {
   git_repository *repo = nullptr;
-  if (git_clone(&repo, url.c_str(), path.c_str(), nullptr) != 0) {
+  if (git_clone(&repo, url, path.c_str(), nullptr) != 0) {
     throw make_error("Failed to clone repository");
   }
   return Repository(repo, path);
 }
 
 std::optional<Repository>
-Repository::try_open(const std::filesystem::path &path) {
+Repository::try_open(const char *url, const std::filesystem::path &path,
+                     const char *remote_name) {
   if (!std::filesystem::exists(path) || !std::filesystem::is_directory(path)) {
     return std::nullopt;
   }
@@ -187,7 +187,66 @@ Repository::try_open(const std::filesystem::path &path) {
   if (git_repository_open(&repo, path.c_str()) != 0) {
     return std::nullopt;
   }
-  return std::make_optional(Repository(repo, path));
+  Repository repository(repo, path);
+
+  git_remote *remote_raw = nullptr;
+  if (git_remote_lookup(&remote_raw, repository.get(), remote_name) != 0) {
+    throw make_error(std::format("Repository at '{}' has no '{}' remote",
+                                 path.string(), remote_name));
+  }
+  GitHandle<git_remote, git_remote_free> remote(remote_raw);
+
+  const char *remote_url = git_remote_url(remote.get());
+  if (remote_url == nullptr || std::string(remote_url) != url) {
+    throw make_error(
+        std::format("Repository at '{}' has {} '{}', expected '{}'",
+                    path.string(), remote_name,
+                    remote_url ? remote_url : "(none)", url),
+        nullptr);
+  }
+
+  return std::make_optional(std::move(repository));
+}
+
+std::vector<RemoteBranch> Repository::ls_remote_branches(const char *url) {
+  git_remote *remote_raw = nullptr;
+  if (git_remote_create_detached(&remote_raw, url) != 0) {
+    throw make_error(std::format("Failed to create remote for '{}'", url));
+  }
+  GitHandle<git_remote, git_remote_free> remote(remote_raw);
+
+  if (git_remote_connect(remote.get(), GIT_DIRECTION_FETCH, nullptr, nullptr,
+                         nullptr) != 0) {
+    throw make_error(std::format("Failed to connect to remote '{}'", url));
+  }
+
+  const git_remote_head **refs = nullptr;
+  size_t refs_len = 0;
+  if (git_remote_ls(&refs, &refs_len, remote.get()) != 0) {
+    git_remote_disconnect(remote.get());
+    throw make_error(
+        std::format("Failed to list references for remote '{}'", url));
+  }
+
+  static constexpr std::string_view branch_prefix = "refs/heads/";
+  std::vector<RemoteBranch> branches;
+  for (size_t i = 0; i < refs_len; ++i) {
+    std::string_view name(refs[i]->name);
+    if (!name.starts_with(branch_prefix)) {
+      continue;
+    }
+
+    char oid_str[GIT_OID_SHA1_HEXSIZE + 1] = {};
+    git_oid_tostr(oid_str, sizeof(oid_str), &refs[i]->oid);
+
+    branches.push_back(RemoteBranch{
+        .name = std::string(name.substr(branch_prefix.size())),
+        .commit_hash = std::string(oid_str),
+    });
+  }
+
+  git_remote_disconnect(remote.get());
+  return branches;
 }
 
 git_repository *Repository::open(const std::filesystem::path &path) {

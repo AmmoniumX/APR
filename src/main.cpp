@@ -25,6 +25,14 @@ int main(int argc, char **argv) {
     std::println("  pkg: {}", p.unified());
   }
 
+  for (const auto &remote : config.remotes) {
+    std::println("Fetching contents for remote {}", remote.name);
+    for (const auto &branch_meta :
+         git2::Repository::ls_remote_branches(remote.url.c_str())) {
+      std::println("  {} : {}", branch_meta.name, branch_meta.commit_hash);
+    }
+  }
+
   git_libgit2_shutdown();
   return 0;
 }
