@@ -10,7 +10,7 @@
 #include <yaml-cpp/yaml.h>
 
 namespace App {
-constexpr inline const char *APPNAME = "apra";
+constexpr inline const char *APPNAME = "apri";
 
 namespace fs = std::filesystem;
 
