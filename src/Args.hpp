@@ -22,7 +22,8 @@ struct SyncCommand {
 };
 
 struct Args {
-  fs::path config_path = get_default_config();
+  fs::path config_dir = get_default_config();
+  fs::path cache_dir = get_cache_dir();
   SyncCommand command;
 };
 
@@ -30,7 +31,7 @@ inline std::expected<Args, int> parse_args(std::span<char *> args) {
   Args parsed_args;
   CLI::App app{"APRA - Arch Personal Repository Archive"};
 
-  app.add_option("-c,--config", parsed_args.config_path,
+  app.add_option("-c,--config", parsed_args.config_dir,
                  "Path to the configuration file");
 
   SyncCommand sync;

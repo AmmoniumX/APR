@@ -26,7 +26,10 @@ inline fs::path get_default_config() {
     }
   }();
 
-  return user_config_dir / APPNAME / "config.yaml";
+  auto app_dir = user_config_dir / APPNAME;
+  fs::create_directory(app_dir); // ensure directory exists
+
+  return app_dir / APPNAME / "config.yaml";
 }
 
 inline fs::path get_cache_dir() {
@@ -42,10 +45,7 @@ inline fs::path get_cache_dir() {
   }();
 
   auto cache_dir = user_cache_dir / APPNAME;
-
-  if (!fs::exists(cache_dir)) {
-    fs::create_directory(cache_dir);
-  }
+  fs::create_directory(cache_dir); // ensure directory exists
 
   return cache_dir;
 }
@@ -71,15 +71,15 @@ inline Config load_config(const fs::path &config_path = get_default_config()) {
 
     // Check if the remote has a whitelist or blacklist
     if (remote["whitelist"]) {
-      std::vector<std::string> whitelist;
+      StringSet whitelist;
       for (const auto &pkg : remote["whitelist"]) {
-        whitelist.emplace_back(pkg.as<std::string>());
+        whitelist.insert(pkg.as<std::string>());
       }
       r.packages = Remote::Whitelist{std::move(whitelist)};
     } else if (remote["blacklist"]) {
-      std::vector<std::string> blacklist;
+      StringSet blacklist;
       for (const auto &pkg : remote["blacklist"]) {
-        blacklist.emplace_back(pkg.as<std::string>());
+        blacklist.insert(pkg.as<std::string>());
       }
       r.packages = Remote::Blacklist{std::move(blacklist)};
     }

@@ -1,6 +1,5 @@
 remotes:
-  - name: ammoniumx-apra
+  - name: ammoniumx
     url: https://github.com/AmmoniumX/APRA-Repo.git
-    whitelist: hellocpp-git
 
 ignored_packages: [foo, bar, baz]

@@ -2,10 +2,20 @@
 
 #include <string>
 #include <string_view>
+#include <unordered_set>
 #include <variant>
-#include <vector>
 
 namespace App {
+template <class... Ts> struct overloaded : Ts... {
+  using Ts::operator()...;
+};
+
+struct TransparentStringHash : std::hash<std::string_view> {
+  using is_transparent = void;
+};
+
+using StringSet =
+    std::unordered_set<std::string, TransparentStringHash, std::equal_to<>>;
 
 struct Remote {
   std::string name;
@@ -14,15 +24,26 @@ struct Remote {
                     // the level for pacman.conf repositories.
 
   struct Whitelist {
-    std::vector<std::string> packages;
+    StringSet packages;
   };
 
   struct Blacklist {
-    std::vector<std::string> packages;
+    StringSet packages;
   };
 
   std::variant<Whitelist, Blacklist> packages =
       Blacklist{}; // Defaults to allow-all
+
+  bool matches(std::string_view package) const {
+    return std::visit(
+        overloaded{[&package](const Whitelist &w) {
+                     return w.packages.contains(package);
+                   },
+                   [&package](const Blacklist &b) {
+                     return !b.packages.contains(package);
+                   }},
+        packages);
+  }
 };
 
 struct Package {
