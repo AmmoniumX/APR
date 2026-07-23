@@ -34,42 +34,16 @@ struct Remote {
   std::variant<Whitelist, Blacklist> packages =
       Blacklist{}; // Defaults to allow-all
 
-  bool matches(std::string_view package) const {
-    return std::visit(
-        overloaded{[&package](const Whitelist &w) {
-                     return w.packages.contains(package);
-                   },
-                   [&package](const Blacklist &b) {
-                     return !b.packages.contains(package);
-                   }},
-        packages);
-  }
+  bool matches(std::string_view package) const;
 };
 
 struct Package {
   std::string remote;
   std::string name;
 
-  static Package parse(std::string_view unified) {
-    std::string remote{}, name{};
-    auto pos = unified.find('/');
-    if (pos == std::string_view::npos) {
-      remote = "";
-      name = std::string(unified);
-    } else {
-      remote = std::string(unified.substr(0, pos));
-      name = std::string(unified.substr(pos + 1));
-    }
-    return Package{.remote = std::move(remote), .name = std::move(name)};
-  }
+  static Package parse(std::string_view unified);
 
-  std::string unified() const {
-    if (remote.empty()) {
-      return name;
-    } else {
-      return remote + "/" + name;
-    }
-  }
+  std::string unified() const;
 };
 
 } // namespace App

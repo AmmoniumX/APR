@@ -21,7 +21,7 @@ find_package(CLI11 CONFIG REQUIRED)
 find_package(Boost REQUIRED COMPONENTS process)
 
 # Create executable
-add_executable(apri src/main.cpp src/git2_lib.cpp)
+add_executable(apri src/main.cpp src/git2_lib.cpp src/Core.cpp src/Config.cpp src/Args.cpp)
 target_sources(apri
   PRIVATE FILE_SET HEADERS
   BASE_DIRS src include
@@ -34,6 +34,6 @@ target_sources(apri
 target_link_libraries(apri PRIVATE 
   libgit2::libgit2package 
   yaml-cpp::yaml-cpp 
-  CLI11::CLI11 
+  CLI11::CLI11
   Boost::process
 )

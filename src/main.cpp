@@ -23,7 +23,9 @@ int main(int argc, char **argv) {
 
   git_libgit2_init();
 
-  auto config = App::load_config(args.config_dir);
+  // Set config to different one if set on args
+  paths::config = args.config_dir;
+  auto config = App::load_config(paths::config);
   std::print("Loaded config with {} remotes and {} ignored packages\n",
              config.remotes.size(), config.ignored_packages.size());
 
