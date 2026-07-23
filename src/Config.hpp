@@ -27,7 +27,7 @@ inline fs::path get_default_config() {
   }();
 
   auto app_dir = user_config_dir / APPNAME;
-  fs::create_directory(app_dir); // ensure directory exists
+  fs::create_directories(app_dir); // ensure directory exists
 
   return app_dir / APPNAME / "config.yaml";
 }
@@ -45,7 +45,7 @@ inline fs::path get_cache_dir() {
   }();
 
   auto cache_dir = user_cache_dir / APPNAME;
-  fs::create_directory(cache_dir); // ensure directory exists
+  fs::create_directories(cache_dir); // ensure directory exists
 
   return cache_dir;
 }
