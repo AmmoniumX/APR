@@ -3,6 +3,7 @@
 #include <Core.hpp>
 #include <Logger.hpp>
 #include <algorithm>
+#include <cassert>
 #include <filesystem>
 #include <fstream>
 #include <future>
@@ -27,21 +28,20 @@ enum class PackageAction { Install, Upgrade, Reinstall, None };
 // from scratch, upgraded, reinstalled, or left alone. An exact version match
 // only triggers a reinstall if the package was explicitly named on the
 // command line (as opposed to being pulled in via -u/--sysupgrade).
-PackageAction
-determine_package_action(const srcinfo::SrcInfo &info, std::string_view pkg,
-                         std::span<const pacman::Package> installed,
-                         bool explicitly_requested) {
-  auto it = std::ranges::find(installed, pkg, &pacman::Package::name);
-  if (it == installed.end()) {
+PackageAction determine_package_action(
+    const srcinfo::SrcInfo &info, std::string_view pkg,
+    std::optional<pacman::Package::Version> installed_version,
+    bool explicitly_requested) {
+  if (!installed_version.has_value()) {
     return PackageAction::Install;
   }
   pacman::Package::Version remote_version{info.version()};
-  if (remote_version == it->version) {
+  if (remote_version == *installed_version) {
     return explicitly_requested ? PackageAction::Reinstall
                                 : PackageAction::None;
   }
-  return remote_version > it->version ? PackageAction::Upgrade
-                                      : PackageAction::None;
+  return remote_version > *installed_version ? PackageAction::Upgrade
+                                             : PackageAction::None;
 }
 
 // Fetch + filter each remote's branches asynchronously
@@ -240,28 +240,56 @@ int main(int argc, char **argv) {
     std::stringstream srcinfo_contents;
     srcinfo_contents << srcinfo_file.rdbuf();
     auto info = srcinfo::SrcInfo::parse(srcinfo_contents.str());
+    auto pkgver = info.version();
 
     bool explicitly_requested = std::ranges::contains(
         sync.packages | std::views::transform(&App::Package::name), pkg);
 
-    switch (
-        determine_package_action(info, pkg, installed, explicitly_requested)) {
-    case PackageAction::Install:
-      logger.info("Package {} is not installed, will install", pkg);
-      // TODO: install the package
+    auto do_install = [&]() -> std::expected<void, int> {
+      return pacman::run_makepkg_sync_install(path);
+    };
+
+    auto installed_version = [&]() -> std::optional<pacman::Package::Version> {
+      auto it = std::ranges::find(installed, pkg, &pacman::Package::name);
+      if (it == installed.end()) {
+        return std::nullopt;
+      }
+      return it->version;
+    }();
+    switch (determine_package_action(info, pkg, installed_version,
+                                     explicitly_requested)) {
+    case PackageAction::Install: {
+      logger.info("Install: {} {}", pkg, pkgver);
+      auto res = do_install();
+      if (!res) {
+        logger.error("Failed to run makepkg");
+        return res.error();
+      }
       break;
-    case PackageAction::Upgrade:
-      logger.info("Package {} is out of date, will upgrade", pkg);
-      // TODO: upgrade the package
+    }
+    case PackageAction::Upgrade: {
+      assert(installed_version.has_value());
+      logger.info("Upgrade: {} {} -> {}", pkg, installed_version->value,
+                  pkgver);
+      auto res = do_install();
+      if (!res) {
+        logger.error("Failed to run makepkg");
+        return res.error();
+      }
       break;
-    case PackageAction::Reinstall:
-      logger.info("Package {} was explicitly requested and matches the "
-                  "installed version, will reinstall",
-                  pkg);
-      // TODO: reinstall the package
+    }
+    case PackageAction::Reinstall: {
+      logger.warn("Reinstall: {} {} == {}", pkg, installed_version->value,
+                  pkgver);
+      auto res = do_install();
+      if (!res) {
+        logger.error("Failed to run makepkg");
+        return res.error();
+      }
       break;
+    }
     case PackageAction::None:
-      logger.debug("Package {} is up to date, skipping", pkg);
+      // logger.debug("Package {} is up to date, skipping", pkg);
       break;
     }
   }

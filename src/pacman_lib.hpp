@@ -2,6 +2,7 @@
 
 #include <compare>
 #include <expected>
+#include <filesystem>
 #include <span>
 #include <string>
 #include <vector>
@@ -24,6 +25,10 @@ struct Package {
 
   Version version;
 };
+
+// Runs makepkg sync install on the given directory. Assumes a PKGBUILD exists.
+std::expected<void, int>
+run_makepkg_sync_install(const std::filesystem::path &directory);
 
 // The error type is the pacman/sudo exit code.
 std::expected<std::vector<Package>, int> query_installed_packages();

@@ -1,3 +1,5 @@
+#include <boost/process/v2/environment.hpp>
+#include <boost/process/v2/start_dir.hpp>
 #include <pacman_lib.hpp>
 
 #include <alpm.h>
@@ -6,6 +8,7 @@
 #include <boost/asio/read.hpp>
 #include <boost/process.hpp>
 
+#include <filesystem>
 #include <format>
 #include <sstream>
 #include <stdexcept>
@@ -89,6 +92,23 @@ std::expected<void, int> run_sudo_pacman(std::vector<std::string> args) {
 }
 
 } // namespace
+
+std::expected<void, int>
+run_makepkg_sync_install(const std::filesystem::path &directory) {
+  auto exe = bp::environment::find_executable("makepkg");
+  if (exe.empty()) {
+    throw std::runtime_error("makepkg not found in PATH");
+  }
+
+  asio::io_context ctx;
+  bp::process proc(ctx, exe, {"-si"}, bp::process_start_dir(directory.c_str()));
+
+  int exit_code = proc.wait();
+  if (exit_code != 0) {
+    return std::unexpected(exit_code);
+  }
+  return {};
+}
 
 std::expected<void, int> refresh() {
   return run_sudo_pacman({"pacman", "-Sy"});
