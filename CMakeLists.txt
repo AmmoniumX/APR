@@ -38,6 +38,7 @@ target_sources(apri
     src/git2_lib.hpp
     src/pacman_lib.hpp
     src/srcinfo.hpp
+    src/Logger.hpp
 )
 target_link_libraries(apri PRIVATE
   libgit2::libgit2package

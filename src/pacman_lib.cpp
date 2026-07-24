@@ -15,8 +15,7 @@ namespace pacman {
 namespace asio = boost::asio;
 namespace bp = boost::process;
 
-std::strong_ordering
-Package::Version::operator<=>(const Version &other) const {
+std::strong_ordering Package::Version::operator<=>(const Version &other) const {
   int rc = alpm_pkg_vercmp(value.c_str(), other.value.c_str());
   if (rc < 0) {
     return std::strong_ordering::less;
@@ -92,7 +91,7 @@ std::expected<void, int> run_sudo_pacman(std::vector<std::string> args) {
 } // namespace
 
 std::expected<void, int> refresh() {
-  return run_sudo_pacman({"pacman", "-Sy", "--noconfirm"});
+  return run_sudo_pacman({"pacman", "-Sy"});
 }
 
 std::expected<void, int> install_packages(std::span<std::string> packages) {
@@ -100,14 +99,14 @@ std::expected<void, int> install_packages(std::span<std::string> packages) {
     return {};
   }
 
-  std::vector<std::string> args{"pacman", "-S", "--noconfirm"};
+  std::vector<std::string> args{"pacman", "-S"};
   args.insert(args.end(), packages.begin(), packages.end());
   return run_sudo_pacman(std::move(args));
 }
 
 std::expected<void, int>
 upgrade_and_install_packages(std::span<std::string> packages) {
-  std::vector<std::string> args{"pacman", "-Syu", "--noconfirm"};
+  std::vector<std::string> args{"pacman", "-Su"};
   args.insert(args.end(), packages.begin(), packages.end());
   return run_sudo_pacman(std::move(args));
 }

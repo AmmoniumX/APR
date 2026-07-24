@@ -13,6 +13,8 @@ std::expected<Args, int> parse_args(std::span<char *> args) {
 
   app.add_option("-c,--config", parsed_args.config_dir,
                  "Path to the configuration file");
+  app.add_flag("-v,--verbose", parsed_args.verbose,
+               "Enable verbose (debug-level) logging");
 
   SyncCommand sync;
   bool do_sync = false;

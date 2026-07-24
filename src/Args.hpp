@@ -20,6 +20,7 @@ struct SyncCommand {
 struct Args {
   fs::path config_dir = get_default_config();
   SyncCommand command;
+  bool verbose = false; // -v: enable debug-level logging
 };
 
 std::expected<Args, int> parse_args(std::span<char *> args);

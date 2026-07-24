@@ -2,6 +2,7 @@
 
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <unordered_set>
 #include <variant>
 
@@ -17,7 +18,13 @@ struct TransparentStringHash : std::hash<std::string_view> {
 using StringSet =
     std::unordered_set<std::string, TransparentStringHash, std::equal_to<>>;
 
+template <typename T>
+using StringMap =
+    std::unordered_map<std::string, T, TransparentStringHash, std::equal_to<>>;
+
 struct Remote {
+  static constexpr int PACMAN_REPOS_PRIORITY = 0;
+
   std::string name;
   std::string url;
   int priority = 1; // higher number means higher priority. Default is 1, 0 is
@@ -35,6 +42,8 @@ struct Remote {
       Blacklist{}; // Defaults to allow-all
 
   bool matches(std::string_view package) const;
+
+  bool operator==(const Remote &other) const { return name == other.name; }
 };
 
 struct Package {
@@ -50,3 +59,9 @@ struct Package {
 void ensure_not_root();
 
 } // namespace App
+
+template <> struct std::hash<App::Remote> {
+  std::size_t operator()(const App::Remote &r) const noexcept {
+    return std::hash<std::string>{}(r.name);
+  }
+};
