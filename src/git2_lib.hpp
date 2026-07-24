@@ -60,14 +60,18 @@ public:
   }
 
   bool fetch(const char *remote_name = "origin");
+  bool fetch_branch(const char *branch, const char *remote_name = "origin");
   bool pull(const char *remote_name = "origin");
+  bool pull_branch(const char *branch, const char *remote_name = "origin");
   Commit head() const;
   Remote remote(const char *remote_name = "origin") const;
   std::vector<Reference> branches() const;
 
-  static Repository clone(const char *url, const std::filesystem::path &path);
+  static Repository clone(const char *url, const std::filesystem::path &path,
+                          const char *branch);
   static std::optional<Repository> try_open(const char *url,
                                             const std::filesystem::path &path,
+                                            const char *branch,
                                             const char *remote_name = "origin");
   static std::vector<RemoteBranch> ls_remote_branches(const char *url);
 
@@ -75,6 +79,8 @@ private:
   static git_repository *open(const std::filesystem::path &path);
 
   Repository(git_repository *repo, std::filesystem::path path);
+
+  void checkout_branch(const char *branch, const char *remote_name);
 };
 
 } // namespace git2

@@ -30,7 +30,7 @@ bool Package::Version::operator==(const Version &other) const {
   return (*this <=> other) == 0;
 }
 
-std::expected<std::vector<Package>, int> installed_packages() {
+std::expected<std::vector<Package>, int> query_installed_packages() {
   auto exe = bp::environment::find_executable("pacman");
   if (exe.empty()) {
     throw std::runtime_error("pacman executable not found in PATH");

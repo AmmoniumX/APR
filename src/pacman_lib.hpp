@@ -26,7 +26,7 @@ struct Package {
 };
 
 // The error type is the pacman/sudo exit code.
-std::expected<std::vector<Package>, int> installed_packages();
+std::expected<std::vector<Package>, int> query_installed_packages();
 
 // Refreshes the package databases via `sudo pacman -Sy --noconfirm`.
 std::expected<void, int> refresh();

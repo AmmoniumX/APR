@@ -43,11 +43,6 @@ fs::path get_cache_dir() {
   return cache_dir;
 }
 
-namespace paths {
-fs::path config = get_default_config();
-fs::path cache = get_cache_dir();
-} // namespace paths
-
 Config load_config(const fs::path &config_path) {
   Config config;
   if (!fs::exists(config_path) || !fs::is_regular_file(config_path)) {

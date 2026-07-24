@@ -51,6 +51,37 @@ bool Repository::fetch(const char *remote_name) {
   return updated;
 }
 
+bool Repository::fetch_branch(const char *branch, const char *remote_name) {
+  git_remote *remote_raw = nullptr;
+  if (git_remote_lookup(&remote_raw, get(), remote_name) != 0) {
+    throw make_error(std::format("Failed to lookup remote '{}'", remote_name));
+  }
+  GitHandle<git_remote, git_remote_free> remote(remote_raw);
+
+  bool updated = false;
+  git_fetch_options opts = GIT_FETCH_OPTIONS_INIT;
+  opts.callbacks.payload = &updated;
+  opts.callbacks.update_tips = [](const char *, const git_oid *a,
+                                  const git_oid *b, void *payload) -> int {
+    if (!git_oid_equal(a, b)) {
+      *static_cast<bool *>(payload) = true;
+    }
+    return 0;
+  };
+
+  std::string refspec = std::format("+refs/heads/{}:refs/remotes/{}/{}",
+                                    branch, remote_name, branch);
+  char *refspec_cstr = refspec.data();
+  git_strarray refspecs{&refspec_cstr, 1};
+
+  if (git_remote_fetch(remote.get(), &refspecs, &opts, nullptr) != 0) {
+    throw make_error(
+        std::format("Failed to fetch branch '{}' from remote", branch));
+  }
+
+  return updated;
+}
+
 bool Repository::pull(const char *remote_name) {
   fetch(remote_name);
 
@@ -128,6 +159,75 @@ bool Repository::pull(const char *remote_name) {
   return true;
 }
 
+bool Repository::pull_branch(const char *branch, const char *remote_name) {
+  fetch_branch(branch, remote_name);
+
+  std::string local_ref_name = std::format("refs/heads/{}", branch);
+  git_reference *local_ref_raw = nullptr;
+  if (git_reference_lookup(&local_ref_raw, get(), local_ref_name.c_str()) !=
+      0) {
+    throw make_error(
+        std::format("Failed to lookup local branch '{}'", branch));
+  }
+  GitHandle<git_reference, git_reference_free> local_ref(local_ref_raw);
+
+  std::string remote_ref_name =
+      std::format("refs/remotes/{}/{}", remote_name, branch);
+  git_reference *remote_ref_raw = nullptr;
+  if (git_reference_lookup(&remote_ref_raw, get(), remote_ref_name.c_str()) !=
+      0) {
+    throw make_error(
+        std::format("Failed to lookup remote ref '{}'", remote_ref_name));
+  }
+  GitHandle<git_reference, git_reference_free> remote_ref(remote_ref_raw);
+
+  const git_oid *remote_oid = git_reference_target(remote_ref.get());
+  const git_oid *local_oid = git_reference_target(local_ref.get());
+
+  if (git_oid_equal(remote_oid, local_oid)) {
+    return false;
+  }
+
+  int descendant = git_graph_descendant_of(get(), remote_oid, local_oid);
+  if (descendant < 0) {
+    throw make_error("Failed to compute merge relationship");
+  }
+  if (!descendant) {
+    throw make_error(std::format(
+        "Cannot fast-forward branch '{}': local branch has diverged from remote",
+        branch));
+  }
+
+  // Only touch the working tree if this branch is the one checked out.
+  git_reference *head_raw = nullptr;
+  if (git_repository_head(&head_raw, get()) == 0) {
+    GitHandle<git_reference, git_reference_free> head_ref(head_raw);
+    if (std::string(git_reference_shorthand(head_ref.get())) == branch) {
+      git_object *target_raw = nullptr;
+      if (git_object_lookup(&target_raw, get(), remote_oid,
+                            GIT_OBJECT_COMMIT) != 0) {
+        throw make_error("Failed to lookup target commit");
+      }
+      GitHandle<git_object, git_object_free> target(target_raw);
+
+      git_checkout_options checkout_opts = GIT_CHECKOUT_OPTIONS_INIT;
+      checkout_opts.checkout_strategy = GIT_CHECKOUT_SAFE;
+      if (git_checkout_tree(get(), target.get(), &checkout_opts) != 0) {
+        throw make_error("Failed to checkout tree");
+      }
+    }
+  }
+
+  git_reference *new_ref_raw = nullptr;
+  if (git_reference_set_target(&new_ref_raw, local_ref.get(), remote_oid,
+                               "pull: fast-forward") != 0) {
+    throw make_error("Failed to update local branch reference");
+  }
+  GitHandle<git_reference, git_reference_free> new_ref(new_ref_raw);
+
+  return true;
+}
+
 Commit Repository::head() const {
   git_oid oid;
   if (git_reference_name_to_id(&oid, get(), "HEAD") != 0) {
@@ -167,10 +267,23 @@ std::vector<Reference> Repository::branches() const {
   return branches;
 }
 
-Repository Repository::clone(const char *url,
-                             const std::filesystem::path &path) {
+Repository Repository::clone(const char *url, const std::filesystem::path &path,
+                             const char *branch) {
+  git_clone_options opts = GIT_CLONE_OPTIONS_INIT;
+  opts.checkout_branch = branch;
+  opts.remote_cb = [](git_remote **out, git_repository *repo,
+                      const char *name, const char *url,
+                      void *payload) -> int {
+    const char *branch = static_cast<const char *>(payload);
+    std::string fetchspec =
+        std::format("+refs/heads/{}:refs/remotes/{}/{}", branch, name, branch);
+    return git_remote_create_with_fetchspec(out, repo, name, url,
+                                            fetchspec.c_str());
+  };
+  opts.remote_cb_payload = const_cast<char *>(branch);
+
   git_repository *repo = nullptr;
-  if (git_clone(&repo, url, path.c_str(), nullptr) != 0) {
+  if (git_clone(&repo, url, path.c_str(), &opts) != 0) {
     throw make_error("Failed to clone repository");
   }
   return Repository(repo, path);
@@ -178,7 +291,7 @@ Repository Repository::clone(const char *url,
 
 std::optional<Repository>
 Repository::try_open(const char *url, const std::filesystem::path &path,
-                     const char *remote_name) {
+                     const char *branch, const char *remote_name) {
   if (!std::filesystem::exists(path) || !std::filesystem::is_directory(path)) {
     return std::nullopt;
   }
@@ -205,7 +318,73 @@ Repository::try_open(const char *url, const std::filesystem::path &path,
         nullptr);
   }
 
+  repository.checkout_branch(branch, remote_name);
+
   return std::make_optional(std::move(repository));
+}
+
+void Repository::checkout_branch(const char *branch, const char *remote_name) {
+  git_reference *head_raw = nullptr;
+  if (git_repository_head(&head_raw, get()) == 0) {
+    GitHandle<git_reference, git_reference_free> head_ref(head_raw);
+    if (std::string(git_reference_shorthand(head_ref.get())) == branch) {
+      return;
+    }
+  }
+
+  git_reference *branch_ref_raw = nullptr;
+  if (git_branch_lookup(&branch_ref_raw, get(), branch, GIT_BRANCH_LOCAL) !=
+      0) {
+    std::string remote_ref_name =
+        std::format("refs/remotes/{}/{}", remote_name, branch);
+    git_reference *remote_ref_raw = nullptr;
+    if (git_reference_lookup(&remote_ref_raw, get(),
+                             remote_ref_name.c_str()) != 0) {
+      throw make_error(std::format(
+          "Branch '{}' not found locally or on remote '{}'", branch,
+          remote_name));
+    }
+    GitHandle<git_reference, git_reference_free> remote_ref(remote_ref_raw);
+
+    git_commit *commit_raw = nullptr;
+    if (git_commit_lookup(&commit_raw, get(),
+                          git_reference_target(remote_ref.get())) != 0) {
+      throw make_error("Failed to lookup commit for remote branch");
+    }
+    Commit commit(commit_raw);
+
+    if (git_branch_create(&branch_ref_raw, get(), branch, commit.get(), 0) !=
+        0) {
+      throw make_error(std::format("Failed to create local branch '{}'", branch));
+    }
+
+    if (git_branch_set_upstream(
+            branch_ref_raw,
+            std::format("{}/{}", remote_name, branch).c_str()) != 0) {
+      throw make_error(
+          std::format("Failed to set upstream for branch '{}'", branch));
+    }
+  }
+  GitHandle<git_reference, git_reference_free> branch_ref(branch_ref_raw);
+
+  git_object *target_raw = nullptr;
+  if (git_object_lookup(&target_raw, get(),
+                        git_reference_target(branch_ref.get()),
+                        GIT_OBJECT_COMMIT) != 0) {
+    throw make_error("Failed to lookup target commit");
+  }
+  GitHandle<git_object, git_object_free> target(target_raw);
+
+  git_checkout_options checkout_opts = GIT_CHECKOUT_OPTIONS_INIT;
+  checkout_opts.checkout_strategy = GIT_CHECKOUT_SAFE;
+  if (git_checkout_tree(get(), target.get(), &checkout_opts) != 0) {
+    throw make_error("Failed to checkout tree");
+  }
+
+  std::string ref_name = std::format("refs/heads/{}", branch);
+  if (git_repository_set_head(get(), ref_name.c_str()) != 0) {
+    throw make_error(std::format("Failed to set HEAD to '{}'", branch));
+  }
 }
 
 std::vector<RemoteBranch> Repository::ls_remote_branches(const char *url) {
