@@ -79,11 +79,6 @@ Config load_config(const fs::path &config_path) {
     config.remotes.emplace_back(std::move(r));
   }
 
-  for (const auto &ignored_package : config_yaml["ignored_packages"]) {
-    config.ignored_packages.emplace_back(
-        Package::parse(ignored_package.as<std::string>()));
-  }
-
   return config;
 }
 

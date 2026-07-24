@@ -21,7 +21,6 @@ extern fs::path cache;
 
 struct Config {
   std::vector<Remote> remotes;
-  std::vector<Package> ignored_packages;
 };
 
 Config load_config(const fs::path &config_path);

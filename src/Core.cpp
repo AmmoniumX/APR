@@ -1,5 +1,8 @@
 #include <Core.hpp>
 
+#include <stdexcept>
+#include <unistd.h>
+
 namespace App {
 
 bool Remote::matches(std::string_view package) const {
@@ -31,6 +34,14 @@ std::string Package::unified() const {
     return name;
   } else {
     return remote + "/" + name;
+  }
+}
+
+void ensure_not_root() {
+  if (geteuid() == 0) {
+    throw std::runtime_error(
+        "refusing to run as root; privileged pacman actions are performed "
+        "via sudo");
   }
 }
 

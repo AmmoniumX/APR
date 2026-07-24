@@ -20,8 +20,14 @@ find_package(yaml-cpp CONFIG REQUIRED)
 find_package(CLI11 CONFIG REQUIRED)
 find_package(Boost REQUIRED COMPONENTS process)
 
+# libalpm is not in vcpkg; it ships as part of the system pacman package
+# (we already depend on the pacman binary being present), so link it via
+# pkg-config instead.
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(ALPM REQUIRED IMPORTED_TARGET libalpm)
+
 # Create executable
-add_executable(apri src/main.cpp src/git2_lib.cpp src/Core.cpp src/Config.cpp src/Args.cpp)
+add_executable(apri src/main.cpp src/git2_lib.cpp src/Core.cpp src/Config.cpp src/Args.cpp src/pacman_lib.cpp src/srcinfo.cpp)
 target_sources(apri
   PRIVATE FILE_SET HEADERS
   BASE_DIRS src include
@@ -30,10 +36,13 @@ target_sources(apri
     src/Config.hpp
     src/Core.hpp
     src/git2_lib.hpp
+    src/pacman_lib.hpp
+    src/srcinfo.hpp
 )
-target_link_libraries(apri PRIVATE 
-  libgit2::libgit2package 
-  yaml-cpp::yaml-cpp 
+target_link_libraries(apri PRIVATE
+  libgit2::libgit2package
+  yaml-cpp::yaml-cpp
   CLI11::CLI11
   Boost::process
+  PkgConfig::ALPM
 )

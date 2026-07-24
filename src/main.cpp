@@ -3,6 +3,7 @@
 #include <Core.hpp>
 #include <future>
 #include <git2_lib.hpp>
+#include <pacman_lib.hpp>
 #include <print>
 #include <ranges>
 #include <span>
@@ -12,36 +13,16 @@
 #include <utility>
 #include <vector>
 
-int main(int argc, char **argv) {
-  using namespace App;
+namespace {
 
-  auto args_res = App::parse_args(std::span(argv, argc));
-  if (!args_res) {
-    return args_res.error();
-  }
-  auto args = *args_res;
-
-  git_libgit2_init();
-
-  // Set config to different one if set on args
-  paths::config = args.config_dir;
-  auto config = App::load_config(paths::config);
-  std::print("Loaded config with {} remotes and {} ignored packages\n",
-             config.remotes.size(), config.ignored_packages.size());
-
-  auto &sync = args.command;
-  std::println("sync: refresh={} upgrade={} packages={}", sync.refresh,
-               sync.upgrade, sync.packages.size());
-  for (auto &p : sync.packages) {
-    std::println("  pkg: {}", p.unified());
-  }
-
-  // Fetch + filter each remote's branches asynchronously
+// Fetch + filter each remote's branches asynchronously
+std::unordered_map<std::string, std::vector<git2::RemoteBranch>>
+fetch_remote_branches(const std::vector<App::Remote> &remotes) {
   using RemoteFetchResult =
       std::pair<std::string, std::vector<git2::RemoteBranch>>;
   std::vector<std::future<RemoteFetchResult>> fetch_tasks;
-  fetch_tasks.reserve(config.remotes.size());
-  for (const auto &remote : config.remotes) {
+  fetch_tasks.reserve(remotes.size());
+  for (const auto &remote : remotes) {
     fetch_tasks.push_back(
         std::async(std::launch::async, [&remote]() -> RemoteFetchResult {
           auto branches =
@@ -63,12 +44,75 @@ int main(int argc, char **argv) {
     auto [name, branches] = task.get();
     remote_branches.emplace(std::move(name), std::move(branches));
   }
+  return remote_branches;
+}
 
-  std::println("Fetched remotes and branches:");
-  for (const auto &[remote, branches] : remote_branches) {
-    for (const auto &branch : branches) {
-      std::println("  {}/{} ({})", remote, branch.name, branch.commit_hash);
+} // namespace
+
+int main(int argc, char **argv) {
+  using namespace App;
+
+  ensure_not_root();
+
+  auto args_res = parse_args(std::span(argv, argc));
+  if (!args_res) {
+    return args_res.error();
+  }
+  auto args = *args_res;
+
+  git_libgit2_init();
+
+  // Set config to different one if set on args
+  paths::config = args.config_dir;
+  auto config = App::load_config(paths::config);
+  std::println("Loaded config with {} remotes", config.remotes.size());
+
+  auto &sync = args.command;
+  std::println("sync: refresh={} upgrade={} packages={}", sync.refresh,
+               sync.upgrade, sync.packages.size());
+  for (auto &p : sync.packages) {
+    std::println("  pkg: {}", p.unified());
+  }
+
+  auto remote_branches = fetch_remote_branches(config.remotes);
+  auto installed_res = pacman::installed_packages();
+  if (!installed_res) {
+    std::println(stderr, "pacman -Q failed with exit code {}",
+                 installed_res.error());
+    git_libgit2_shutdown();
+    return installed_res.error();
+  }
+  auto installed = *installed_res;
+  std::println("pacman reports {} installed packages", installed.size());
+
+  if (sync.refresh) {
+    auto result = pacman::refresh();
+    if (!result) {
+      std::println(stderr, "pacman -Sy failed with exit code {}",
+                   result.error());
+      git_libgit2_shutdown();
+      return result.error();
     }
+    std::println("Refreshed package databases");
+  }
+
+  std::vector<std::string> package_names;
+  package_names.reserve(sync.packages.size());
+  for (auto &p : sync.packages) {
+    package_names.push_back(p.name);
+  }
+
+  if (sync.upgrade || !package_names.empty()) {
+    auto result = sync.upgrade
+                      ? pacman::upgrade_and_install_packages(package_names)
+                      : pacman::install_packages(package_names);
+    if (!result) {
+      std::println(stderr, "pacman sync failed with exit code {}",
+                   result.error());
+      git_libgit2_shutdown();
+      return result.error();
+    }
+    std::println("pacman sync completed successfully");
   }
 
   git_libgit2_shutdown();

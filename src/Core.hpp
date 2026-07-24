@@ -46,4 +46,7 @@ struct Package {
   std::string unified() const;
 };
 
+// Throws if the calling process is running with root privileges.
+void ensure_not_root();
+
 } // namespace App

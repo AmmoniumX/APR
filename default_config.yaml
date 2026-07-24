@@ -1,5 +1,3 @@
 remotes:
   - name: ammoniumx
     url: https://github.com/AmmoniumX/APRA-Repo.git
-
-ignored_packages: [foo, bar, baz]
