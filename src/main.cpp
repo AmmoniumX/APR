@@ -217,8 +217,10 @@ int main(int argc, char **argv) {
     auto repository = [&]() -> git2::Repository {
       auto existing = git2::Repository::try_open(url, path, branch);
       if (existing) {
-        logger.info("Fetching latest branch: {}/{}", remote.name, url);
-        (void)existing->fetch_branch(branch);
+        if (sync.refresh) {
+          logger.info("Fetching latest branch: {}/{}", remote.name, url);
+          (void)existing->fetch_branch(branch);
+        }
         return std::move(*existing);
       }
       logger.info("Cloning new branch: {}/{}", remote.name, url);
